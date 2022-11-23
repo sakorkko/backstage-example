@@ -2,35 +2,34 @@ import { useHotCleanup } from '@backstage/backend-common';
 import { createRouter } from '@backstage/plugin-search-backend';
 import {
   IndexBuilder,
-  LunrSearchEngine,
 } from '@backstage/plugin-search-backend-node';
+import { ElasticSearchSearchEngine } from '@backstage/plugin-search-backend-module-elasticsearch'
 import { PluginEnvironment } from '../types';
 import { DefaultCatalogCollatorFactory } from '@backstage/plugin-catalog-backend';
 import { DefaultTechDocsCollatorFactory } from '@backstage/plugin-techdocs-backend';
 import { Router } from 'express';
+import { SomeDocumentPipelineCollatorFactory } from './documentPipelineFactory';
 
 export default async function createPlugin(
   env: PluginEnvironment,
 ): Promise<Router> {
   // Initialize a connection to a search engine.
-  const searchEngine = new LunrSearchEngine({
+  const searchEngine = await ElasticSearchSearchEngine.fromConfig({
     logger: env.logger,
+    config: env.config,
   });
+
   const indexBuilder = new IndexBuilder({
     logger: env.logger,
     searchEngine,
   });
 
   const schedule = env.scheduler.createScheduledTaskRunner({
-    frequency: { minutes: 10 },
-    timeout: { minutes: 15 },
-    // A 3 second delay gives the backend server a chance to initialize before
-    // any collators are executed, which may attempt requests against the API.
-    initialDelay: { seconds: 3 },
+    frequency: { seconds: 20 },
+    timeout: { seconds: 19 },
+    initialDelay: { seconds: 10 },
   });
 
-  // Collators are responsible for gathering documents known to plugins. This
-  // collator gathers entities from the software catalog.
   indexBuilder.addCollator({
     schedule,
     factory: DefaultCatalogCollatorFactory.fromConfig(env.config, {
@@ -39,7 +38,6 @@ export default async function createPlugin(
     }),
   });
 
-  // collator gathers entities from techdocs.
   indexBuilder.addCollator({
     schedule,
     factory: DefaultTechDocsCollatorFactory.fromConfig(env.config, {
@@ -49,8 +47,11 @@ export default async function createPlugin(
     }),
   });
 
-  // The scheduler controls when documents are gathered from collators and sent
-  // to the search engine for indexing.
+  indexBuilder.addCollator({
+    schedule,
+    factory: SomeDocumentPipelineCollatorFactory.fromConfig(),
+  })
+
   const { scheduler } = await indexBuilder.build();
   scheduler.start();
 
