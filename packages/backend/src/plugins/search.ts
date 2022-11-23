@@ -25,8 +25,8 @@ export default async function createPlugin(
   });
 
   const schedule = env.scheduler.createScheduledTaskRunner({
-    frequency: { seconds: 20 },
-    timeout: { seconds: 19 },
+    frequency: { minutes: 15 },
+    timeout: { minutes: 10 },
     initialDelay: { seconds: 10 },
   });
 
